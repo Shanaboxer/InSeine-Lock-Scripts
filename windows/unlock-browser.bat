@@ -57,6 +57,10 @@ reg delete "HKLM\SOFTWARE\Policies\Mozilla\Firefox" /v DisablePrivateBrowsing /f
 reg delete "HKLM\SOFTWARE\Policies\Mozilla\Firefox" /v BlockAboutAddons /f >nul 2>&1
 reg delete "HKLM\SOFTWARE\Policies\Mozilla\Firefox" /v BlockAboutConfig /f >nul 2>&1
 
+:: Added alongside the Firefox extension lock in lock-browser.bat. Without this
+:: the lock script would set it and nothing would ever take it away.
+reg delete "HKLM\SOFTWARE\Policies\Mozilla\Firefox" /v ExtensionSettings /f >nul 2>&1
+
 reg delete "HKLM\SOFTWARE\InSeine" /f >nul 2>&1
 
 echo.

@@ -33,19 +33,38 @@ echo.
 echo   You need In'Seine's Chrome Web Store extension ID. It's at the end of
 echo   the store listing address. 32 letters, a to p.
 echo.
+echo   Not using Chrome, or In'Seine isn't on the store yet? Press Enter to
+echo   skip. Everything else still applies - private browsing off, SafeSearch
+echo   forced, Firefox extension locked - but Chrome and Edge will not
+echo   auto-install In'Seine or stop it being removed.
+echo.
 
-set /p EXTID="   Extension ID: "
-for /f "delims=" %%A in ('powershell -NoProfile -Command "'!EXTID!'.Trim().ToLower()"') do set EXTID=%%A
+set "EXTID="
+set /p EXTID="   Extension ID (or Enter to skip): "
 
-echo !EXTID!| findstr /r "^[a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p]$" >nul
-if errorlevel 1 (
+:: Deliberately allowed to be empty. force_installed tells Chrome to DOWNLOAD
+:: the extension from the Web Store, so it cannot work for an unlisted or
+:: developer-loaded copy whatever ID is given - the ID Chrome shows for an
+:: unpacked extension is a hash of its folder path and changes if the folder is
+:: renamed. Refusing to run just meant nobody could apply the rest.
+if defined EXTID (
+  for /f "delims=" %%A in ('powershell -NoProfile -Command "'!EXTID!'.Trim().ToLower()"') do set EXTID=%%A
+  echo !EXTID!| findstr /r "^[a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p]$" >nul
+  if errorlevel 1 (
+    echo.
+    echo   That doesn't look like a Chrome extension ID.
+    echo   Expected 32 letters in the range a-p, for example:
+    echo       nmmhkkegccagdldgiimedpiccmgmieda
+    echo.
+    echo   Leave it blank to skip the Chrome extension lock entirely.
+    echo.
+    pause
+    exit /b 1
+  )
+) else (
   echo.
-  echo   That doesn't look like a Chrome extension ID.
-  echo   Expected 32 letters in the range a-p, for example:
-  echo       nmmhkkegccagdldgiimedpiccmgmieda
-  echo.
-  pause
-  exit /b 1
+  echo   Skipping the Chrome and Edge extension lock.
+  echo   In'Seine will still work, but in Chrome it can be removed.
 )
 
 echo.
@@ -85,13 +104,15 @@ echo.
 echo   Writing policy...
 
 :: Lock In'Seine only, and install it into every account.
-reg add "%CHROME%\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
-reg add "%CHROME%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
-reg add "%CHROME%\ExtensionSettings\!EXTID!" /v incognito_mode /t REG_SZ /d "enabled" /f >nul
-reg add "%CHROME%\ExtensionSettings\!EXTID!" /v toolbar_pin /t REG_SZ /d "force_pinned" /f >nul
+if defined EXTID (
+  reg add "%CHROME%\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
+  reg add "%CHROME%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
+  reg add "%CHROME%\ExtensionSettings\!EXTID!" /v incognito_mode /t REG_SZ /d "enabled" /f >nul
+  reg add "%CHROME%\ExtensionSettings\!EXTID!" /v toolbar_pin /t REG_SZ /d "force_pinned" /f >nul
 
-reg add "%EDGE%\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
-reg add "%EDGE%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
+  reg add "%EDGE%\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
+  reg add "%EDGE%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
+)
 
 :: Browser-level settings, below the extension
 reg add "%CHROME%" /v ForceGoogleSafeSearch /t REG_DWORD /d 1 /f >nul
@@ -102,6 +123,13 @@ reg add "%EDGE%" /v InPrivateModeAvailability /t REG_DWORD /d 1 /f >nul
 
 reg add "%FIREFOX%" /v DisablePrivateBrowsing /t REG_DWORD /d 1 /f >nul
 reg add "%FIREFOX%" /v BlockAboutConfig /t REG_DWORD /d 1 /f >nul
+
+:: Firefox's extension lock was missing from the Windows script entirely - the
+:: Linux one had it. Firefox takes ExtensionSettings as a single JSON string,
+:: not as nested keys the way Chrome does. The ID must match
+:: browser_specific_settings.gecko.id in the Firefox manifest; naming the wrong
+:: one does not fail loudly, it silently protects nothing.
+reg add "%FIREFOX%" /v ExtensionSettings /t REG_SZ /d "{\"inseine@inseine.co.uk\":{\"installation_mode\":\"locked\"}}" /f >nul
 
 if /i not "%YT%"=="n" (
   reg add "%CHROME%" /v ForceYouTubeRestrict /t REG_DWORD /d 2 /f >nul
