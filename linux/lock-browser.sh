@@ -72,16 +72,35 @@ echo "      chrome.google.com/webstore/detail/inseine/<THIS BIT>"
 echo
 echo "  32 letters, a to p."
 echo
-read -rp "  Extension ID: " EXTID
+echo "  Not using Chrome, or In'Seine isn't on the store yet? Press Enter to"
+echo "  skip. Everything else still applies - private browsing off, SafeSearch"
+echo "  forced, Firefox extension locked - but Chrome will not auto-install"
+echo "  In'Seine or stop it being removed."
+echo
+read -rp "  Extension ID (or Enter to skip): " EXTID
 
 EXTID=$(echo "$EXTID" | tr -d '[:space:]' | tr 'A-Z' 'a-z')
-if ! [[ "$EXTID" =~ ^[a-p]{32}$ ]]; then
+
+# Deliberately allowed to be empty. force_installed tells Chrome to DOWNLOAD the
+# extension from the Web Store, so it cannot work for an unlisted or
+# developer-loaded copy whatever ID is supplied - the ID Chrome shows for an
+# unpacked extension is a hash of its folder path and changes if the folder is
+# renamed. Refusing to run at all just meant nobody could apply the rest.
+if [[ -n "$EXTID" ]] && ! [[ "$EXTID" =~ ^[a-p]{32}$ ]]; then
   echo
   echo "  That doesn't look like a Chrome extension ID."
   echo "  Expected 32 letters in the range a-p, for example:"
   echo "      nmmhkkegccagdldgiimedpiccmgmieda"
   echo
+  echo "  Leave it blank to skip the Chrome extension lock entirely."
+  echo
   exit 1
+fi
+
+if [[ -z "$EXTID" ]]; then
+  echo
+  echo "  Skipping the Chrome extension lock."
+  echo "  In'Seine will still work, but in Chrome it can be removed."
 fi
 
 echo
@@ -117,9 +136,8 @@ printf '%s\n%s\n' "$SALT" "$HASH" > /etc/inseine/removal.pin
 chmod 600 /etc/inseine/removal.pin
 chown root:root /etc/inseine/removal.pin
 
-POLICY="{
-  \"IncognitoModeAvailability\": 1,
-  \"ForceGoogleSafeSearch\": true${YT_POLICY},
+if [[ -n "$EXTID" ]]; then
+  EXT_POLICY=",
   \"ExtensionSettings\": {
     \"${EXTID}\": {
       \"installation_mode\": \"force_installed\",
@@ -127,7 +145,14 @@ POLICY="{
       \"incognito_mode\": \"enabled\",
       \"toolbar_pin\": \"force_pinned\"
     }
-  }
+  }"
+else
+  EXT_POLICY=""
+fi
+
+POLICY="{
+  \"IncognitoModeAvailability\": 1,
+  \"ForceGoogleSafeSearch\": true${YT_POLICY}${EXT_POLICY}
 }"
 
 echo
@@ -141,21 +166,30 @@ for dir in "${CHROME_DIRS[@]}"; do
   fi
 done
 
+# The gecko ID must match browser_specific_settings.gecko.id in the Firefox
+# manifest. It was "inseine@localhost" during development; naming the wrong ID
+# here does not fail loudly, it just silently protects nothing.
+#
+# "_inseine_marker" is not a Firefox policy and is ignored by it. It is here so
+# unlock-browser.sh can recognise a policies.json as ours and know it is safe to
+# delete. Without a reliable marker the unlock script left the file in place and
+# the lock could not be undone at all.
 FF_POLICY='{
   "policies": {
     "DisablePrivateBrowsing": true,
     "BlockAboutConfig": true,
     "ExtensionSettings": {
-      "inseine@localhost": { "installation_mode": "locked" }
+      "inseine@inseine.co.uk": { "installation_mode": "locked" }
     }
-  }
+  },
+  "_inseine_marker": "written by In'"'"'Seine lock-browser.sh - safe to remove with unlock-browser.sh"
 }'
 
 for dir in "${FIREFOX_DIRS[@]}"; do
   parent="$(dirname "$dir")"
   if [[ -d "$parent" ]]; then
     mkdir -p "$dir"
-    if [[ -f "$dir/policies.json" ]] && ! grep -q 'DisablePrivateBrowsing' "$dir/policies.json" 2>/dev/null; then
+    if [[ -f "$dir/policies.json" ]] && ! grep -q '_inseine_marker\|inseine@' "$dir/policies.json" 2>/dev/null; then
       cp "$dir/policies.json" "$dir/policies.json.inseine-backup"
       echo "  backed up existing $dir/policies.json"
     fi

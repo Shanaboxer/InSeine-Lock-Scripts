@@ -55,7 +55,17 @@ for dir in "/etc/firefox/policies" "/usr/lib/firefox/distribution" \
     mv "$dir/policies.json.inseine-backup" "$dir/policies.json"
     echo "  restored previous $dir/policies.json"
     REMOVED=$((REMOVED+1))
-  elif [[ -f "$dir/policies.json" ]] && grep -q 'BlockAboutAddons' "$dir/policies.json" 2>/dev/null; then
+  # Recognise the file we wrote. This used to look for "BlockAboutAddons",
+  # which lock-browser.sh has never written — so on any machine with no
+  # pre-existing policies.json there was no backup to restore AND no match
+  # here, and the Firefox lock could not be undone at all. Private browsing
+  # stayed disabled permanently.
+  #
+  # "inseine@localhost" is the pre-0.3.0 gecko ID, still matched so that a lock
+  # applied by an older copy of this script can still be lifted.
+  elif [[ -f "$dir/policies.json" ]] && \
+       grep -q '_inseine_marker\|inseine@inseine.co.uk\|inseine@localhost\|BlockAboutAddons' \
+            "$dir/policies.json" 2>/dev/null; then
     rm -f "$dir/policies.json"
     echo "  removed $dir/policies.json"
     REMOVED=$((REMOVED+1))
