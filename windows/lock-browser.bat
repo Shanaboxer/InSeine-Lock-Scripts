@@ -16,14 +16,24 @@ echo.
 echo   IN'SEINE - LOCK THE BROWSER
 echo   ===========================
 echo.
-echo   This writes browser policy that:
+echo   ALWAYS APPLIED, to every browser found on this computer, in every
+echo   account, because browser policy is set machine-wide:
 echo.
-echo     * Installs In'Seine into EVERY account on this computer
-echo     * Stops In'Seine being removed - and only In'Seine. Your other
-echo       extensions carry on working and stay manageable.
-echo     * Forces Google SafeSearch on, browser-wide
-echo     * Disables private browsing, which otherwise bypasses everything
-echo     * Blocks about:config in Firefox
+echo     * Private browsing disabled. Without this, a private window
+echo       bypasses everything In'Seine does.
+echo     * Google SafeSearch forced on in Chrome and Edge
+echo     * about:config blocked in Firefox
+echo     * A removal PIN, so none of it can be undone without it
+echo.
+echo   OPTIONALLY, if you have the store details to hand:
+echo.
+echo     * In'Seine installed automatically into every account, and made
+echo       impossible to remove - and only In'Seine, your other extensions
+echo       carry on working and stay manageable.
+echo.
+echo   That last one needs the extension to be published, because the browser
+echo   installs it FROM the store. You'll be asked next, and you can skip
+echo   either or both. Skipping loses only that item.
 echo.
 echo   IMPORTANT: this protects against a child using the computer. It does
 echo   NOT protect against anyone with the administrator password. If your
@@ -63,8 +73,26 @@ if defined EXTID (
   )
 ) else (
   echo.
-  echo   Skipping the Chrome and Edge extension lock.
-  echo   In'Seine will still work, but in Chrome it can be removed.
+  echo   Skipped. In'Seine can still be removed in Chrome and Edge.
+)
+
+echo.
+echo   FIREFOX
+echo   -------
+echo   To install and lock In'Seine there, paste its add-on download URL.
+echo   From the addons.mozilla.org listing it looks like:
+echo       https://addons.mozilla.org/firefox/downloads/latest/inseine/latest.xpi
+echo.
+echo   Press Enter to skip. Private browsing and about:config are still
+echo   blocked; In'Seine just won't install itself or resist removal there.
+echo.
+
+set "FFURL="
+set /p FFURL="   Firefox add-on URL (or Enter to skip): "
+
+if not defined FFURL (
+  echo.
+  echo   Skipped. In'Seine can still be removed in Firefox.
 )
 
 echo.
@@ -124,12 +152,17 @@ reg add "%EDGE%" /v InPrivateModeAvailability /t REG_DWORD /d 1 /f >nul
 reg add "%FIREFOX%" /v DisablePrivateBrowsing /t REG_DWORD /d 1 /f >nul
 reg add "%FIREFOX%" /v BlockAboutConfig /t REG_DWORD /d 1 /f >nul
 
-:: Firefox's extension lock was missing from the Windows script entirely - the
-:: Linux one had it. Firefox takes ExtensionSettings as a single JSON string,
-:: not as nested keys the way Chrome does. The ID must match
-:: browser_specific_settings.gecko.id in the Firefox manifest; naming the wrong
-:: one does not fail loudly, it silently protects nothing.
-reg add "%FIREFOX%" /v ExtensionSettings /t REG_SZ /d "{\"inseine@inseine.co.uk\":{\"installation_mode\":\"locked\"}}" /f >nul
+:: Firefox takes ExtensionSettings as a single JSON string, not as nested keys
+:: the way Chrome does.
+::
+:: force_installed is the only Firefox mode that prevents removal, and it needs
+:: install_url because Firefox fetches the add-on itself rather than protecting
+:: a copy already present. An earlier version wrote "installation_mode":
+:: "locked", which is not a Firefox value at all - Firefox ignored the entry and
+:: the lock this script claimed to apply had never once worked.
+if defined FFURL (
+  reg add "%FIREFOX%" /v ExtensionSettings /t REG_SZ /d "{\"inseine@inseine.co.uk\":{\"installation_mode\":\"force_installed\",\"install_url\":\"!FFURL!\"}}" /f >nul
+)
 
 if /i not "%YT%"=="n" (
   reg add "%CHROME%" /v ForceYouTubeRestrict /t REG_DWORD /d 2 /f >nul
@@ -139,6 +172,26 @@ if /i not "%YT%"=="n" (
 
 echo.
 echo   Done. Close ALL browsers completely and reopen them.
+echo.
+echo   APPLIED EVERYWHERE, in every account on this computer:
+echo     * Private browsing disabled
+echo     * Google SafeSearch forced on in Chrome and Edge
+echo     * about:config blocked in Firefox
+echo.
+if defined EXTID (
+  echo   CHROME / EDGE: In'Seine installs itself into every account and
+  echo   cannot be removed or disabled.
+) else (
+  echo   CHROME / EDGE: NOT installed or locked - you skipped the extension ID.
+  echo   In'Seine can still be removed there.
+)
+echo.
+if defined FFURL (
+  echo   FIREFOX: In'Seine installs itself and cannot be removed.
+) else (
+  echo   FIREFOX: NOT installed or locked - you skipped the add-on URL.
+  echo   In'Seine can still be removed there.
+)
 echo.
 echo   Check it worked:
 echo     chrome://policy       the entries should be listed
