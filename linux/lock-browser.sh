@@ -47,16 +47,28 @@ cat <<'BANNER'
   IN'SEINE - LOCK THE BROWSER
   ===========================
 
-  This writes browser policy that:
+  ALWAYS APPLIED, to every browser found on this computer:
 
-    * Installs In'Seine into EVERY account on this computer, automatically
-    * Stops In'Seine being removed or disabled - and only In'Seine. Your
-      other extensions carry on working and stay manageable.
-    * Forces Google SafeSearch on, browser-wide
-    * Disables private browsing, which otherwise bypasses everything
-    * Blocks about:config in Firefox
+    * Private browsing disabled. Without this, a private window bypasses
+      everything In'Seine does.
+    * Google SafeSearch forced on in Chrome, Edge and other Chromium
+      browsers, below the extension and unchangeable from inside it.
+    * about:config blocked in Firefox.
+    * A removal PIN, so none of the above can be undone without it.
 
-  None of it can be changed from inside the browser.
+  These apply to EVERY account on this computer, because browser policy is
+  set system-wide.
+
+  OPTIONALLY, if you have the store details to hand:
+
+    * In'Seine installed automatically into every account, and made
+      impossible to remove or disable - and only In'Seine, your other
+      extensions carry on working and stay manageable.
+
+  That last one needs the extension to be published, because the browser
+  installs it FROM the store. You'll be asked for the details next, and you
+  can skip either or both. Skipping loses only that item; everything above
+  still applies.
 
   IMPORTANT: this protects against a child using the computer. It does NOT
   protect against anyone with the administrator password. If your child's
@@ -65,17 +77,17 @@ cat <<'BANNER'
 
 BANNER
 
-echo "  You need In'Seine's Chrome Web Store extension ID."
-echo
+# --- Chrome ------------------------------------------------------------------
+
+echo "  CHROME, EDGE, BRAVE and other Chromium browsers"
+echo "  -----------------------------------------------"
+echo "  To install and lock In'Seine there, paste its Chrome Web Store ID."
 echo "  It's on the store listing page, at the end of the address:"
 echo "      chrome.google.com/webstore/detail/inseine/<THIS BIT>"
-echo
 echo "  32 letters, a to p."
 echo
-echo "  Not using Chrome, or In'Seine isn't on the store yet? Press Enter to"
-echo "  skip. Everything else still applies - private browsing off, SafeSearch"
-echo "  forced, Firefox extension locked - but Chrome will not auto-install"
-echo "  In'Seine or stop it being removed."
+echo "  Press Enter to skip. Private browsing and SafeSearch are still"
+echo "  applied; In'Seine just won't install itself or resist removal there."
 echo
 read -rp "  Extension ID (or Enter to skip): " EXTID
 
@@ -98,9 +110,46 @@ if [[ -n "$EXTID" ]] && ! [[ "$EXTID" =~ ^[a-p]{32}$ ]]; then
 fi
 
 if [[ -z "$EXTID" ]]; then
+  echo "  Skipped. In'Seine can still be removed in Chrome."
+fi
+
+# --- Firefox -----------------------------------------------------------------
+#
+# Firefox has no equivalent of Chrome's "lock it where it already is". Its
+# ExtensionSettings policy takes exactly three installation_mode values —
+# allowed, blocked and force_installed — and force_installed is the only one
+# that prevents removal. It also REQUIRES an install_url, because the browser
+# fetches the extension itself rather than protecting a copy already present.
+#
+# Earlier versions of this script wrote "installation_mode": "locked". That is
+# not a Firefox value at all. Firefox ignored the entry, and the Firefox
+# extension lock this script claimed to apply had never once worked.
+
+echo
+echo "  FIREFOX"
+echo "  -------"
+echo "  To install and lock In'Seine there, paste its add-on download URL."
+echo "  From the add-ons.mozilla.org listing it looks like:"
+echo "      https://addons.mozilla.org/firefox/downloads/latest/inseine/latest.xpi"
+echo
+echo "  Press Enter to skip. Private browsing and about:config are still"
+echo "  blocked; In'Seine just won't install itself or resist removal there."
+echo
+read -rp "  Firefox add-on URL (or Enter to skip): " FFURL
+
+FFURL=$(echo "$FFURL" | tr -d '[:space:]')
+if [[ -n "$FFURL" ]] && ! [[ "$FFURL" =~ ^https://[^[:space:]]+\.xpi$ ]]; then
   echo
-  echo "  Skipping the Chrome extension lock."
-  echo "  In'Seine will still work, but in Chrome it can be removed."
+  echo "  That doesn't look like an add-on download URL."
+  echo "  It should start with https:// and end with .xpi"
+  echo
+  echo "  Leave it blank to skip the Firefox extension lock entirely."
+  echo
+  exit 1
+fi
+
+if [[ -z "$FFURL" ]]; then
+  echo "  Skipped. In'Seine can still be removed in Firefox."
 fi
 
 echo
@@ -174,16 +223,33 @@ done
 # unlock-browser.sh can recognise a policies.json as ours and know it is safe to
 # delete. Without a reliable marker the unlock script left the file in place and
 # the lock could not be undone at all.
-FF_POLICY='{
-  "policies": {
-    "DisablePrivateBrowsing": true,
-    "BlockAboutConfig": true,
-    "ExtensionSettings": {
-      "inseine@inseine.co.uk": { "installation_mode": "locked" }
-    }
+# force_installed is the only Firefox mode that prevents removal, and it needs
+# install_url because Firefox fetches the add-on itself. No URL, no lock — so
+# the entry is left out entirely rather than written in a form that silently
+# does nothing.
+if [[ -n "$FFURL" ]]; then
+  FF_EXT=",
+    \"ExtensionSettings\": {
+      \"inseine@inseine.co.uk\": {
+        \"installation_mode\": \"force_installed\",
+        \"install_url\": \"${FFURL}\"
+      }
+    }"
+else
+  FF_EXT=""
+fi
+
+# "_inseine_marker" is not a Firefox policy and is ignored by it. It is here so
+# unlock-browser.sh can recognise a policies.json as ours and know it is safe to
+# delete. Without a reliable marker the unlock script left the file in place and
+# the lock could not be undone at all.
+FF_POLICY="{
+  \"policies\": {
+    \"DisablePrivateBrowsing\": true,
+    \"BlockAboutConfig\": true${FF_EXT}
   },
-  "_inseine_marker": "written by In'"'"'Seine lock-browser.sh - safe to remove with unlock-browser.sh"
-}'
+  \"_inseine_marker\": \"written by In'Seine lock-browser.sh - safe to remove with unlock-browser.sh\"
+}"
 
 for dir in "${FIREFOX_DIRS[@]}"; do
   parent="$(dirname "$dir")"
@@ -198,25 +264,54 @@ for dir in "${FIREFOX_DIRS[@]}"; do
   fi
 done
 
-cat <<'DONE'
+echo
+echo "  Done. Now QUIT ALL BROWSERS COMPLETELY and reopen them."
+echo "  Closing the window isn't enough - check with: pgrep -a chrome"
+echo
+echo "  APPLIED EVERYWHERE, in every account on this computer:"
+echo "    * Private browsing disabled"
+echo "    * Google SafeSearch forced on in Chromium browsers"
+echo "    * about:config blocked in Firefox"
+if [[ -n "$YT_POLICY" ]]; then
+  echo "    * YouTube Restricted Mode"
+fi
+echo
 
-  Done. Now QUIT ALL BROWSERS COMPLETELY and reopen them.
-  Closing the window isn't enough - check with: pgrep -a chrome
+if [[ -n "$EXTID" ]]; then
+  echo "  CHROME: In'Seine will install itself into every account the next time"
+  echo "  the browser starts, and cannot be removed or disabled."
+  echo "  Sign into your child's account, open Chrome, and go through In'Seine's"
+  echo "  setup there to choose their filters and their PIN."
+else
+  echo "  CHROME: NOT installed or locked - you skipped the extension ID."
+  echo "  In'Seine can still be removed there, and won't appear in other"
+  echo "  accounts by itself. Re-run this script with the ID to change that."
+fi
+echo
+
+if [[ -n "$FFURL" ]]; then
+  echo "  FIREFOX: In'Seine will install itself and cannot be removed."
+else
+  echo "  FIREFOX: NOT installed or locked - you skipped the add-on URL."
+  echo "  In'Seine can still be removed there."
+fi
+
+cat <<'DONE'
 
   Check it worked:
     chrome://policy       the entries should be listed
-    chrome://extensions   In'Seine's Remove should be greyed out,
-                          other extensions unaffected
-    Right-click the In'Seine icon - Remove should be unavailable
+    chrome://extensions   if you gave an ID, In'Seine's Remove is greyed
+                          out and other extensions are unaffected
+    about:policies        the Firefox equivalent
 
-  Private browsing should be gone from the menu.
-
-  IN EVERY OTHER ACCOUNT ON THIS COMPUTER, In'Seine will install itself
-  the next time Chrome starts. Sign into your child's account, open Chrome,
-  and go through In'Seine's setup there to choose their filters and PIN.
+  Private browsing should be gone from the menu in both.
 
   To undo all of this:
     sudo bash unlock-browser.sh
   and enter the removal PIN you just set.
+
+  Worth doing NOW rather than when you need it: run the unlock script once,
+  check it accepts your PIN, then run this one again. Finding out that the
+  removal works is worth two minutes.
 
 DONE
