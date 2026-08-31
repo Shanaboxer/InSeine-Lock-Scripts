@@ -53,6 +53,18 @@ reg delete "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v ForceGoogleSafeSearch /f >
 reg delete "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v ForceBingSafeSearch /f >nul 2>&1
 reg delete "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v ForceYouTubeRestrict /f >nul 2>&1
 
+:: The other Chromium forks, added alongside them in lock-browser.bat. Without
+:: this the lock would set them and nothing would ever take them away.
+for %%B in ("HKLM\SOFTWARE\Policies\BraveSoftware\Brave" ^
+            "HKLM\SOFTWARE\Policies\Chromium" ^
+            "HKLM\SOFTWARE\Policies\Vivaldi" ^
+            "HKLM\SOFTWARE\Policies\Opera Software") do (
+  reg delete "%%~B\ExtensionSettings" /f >nul 2>&1
+  reg delete "%%~B" /v ForceGoogleSafeSearch /f >nul 2>&1
+  reg delete "%%~B" /v IncognitoModeAvailability /f >nul 2>&1
+  reg delete "%%~B" /v ForceYouTubeRestrict /f >nul 2>&1
+)
+
 reg delete "HKLM\SOFTWARE\Policies\Mozilla\Firefox" /v DisablePrivateBrowsing /f >nul 2>&1
 reg delete "HKLM\SOFTWARE\Policies\Mozilla\Firefox" /v BlockAboutAddons /f >nul 2>&1
 reg delete "HKLM\SOFTWARE\Policies\Mozilla\Firefox" /v BlockAboutConfig /f >nul 2>&1

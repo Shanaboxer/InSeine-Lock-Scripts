@@ -121,6 +121,19 @@ set CHROME=HKLM\SOFTWARE\Policies\Google\Chrome
 set EDGE=HKLM\SOFTWARE\Policies\Microsoft\Edge
 set FIREFOX=HKLM\SOFTWARE\Policies\Mozilla\Firefox
 
+:: The other Chromium forks. These were missing entirely, so a child who
+:: installed Brave, Vivaldi or Opera on Windows got a completely unmanaged
+:: browser and walked round the whole lock. Brave's own documentation gives its
+:: path as Software\Policies\BraveSoftware\Brave.
+::
+:: Written whether or not the browser is present. A key sitting unused in the
+:: registry costs nothing, and it means a browser installed AFTER the lock is
+:: already covered - which is exactly when a child would install one.
+set BRAVE=HKLM\SOFTWARE\Policies\BraveSoftware\Brave
+set CHROMIUM=HKLM\SOFTWARE\Policies\Chromium
+set VIVALDI=HKLM\SOFTWARE\Policies\Vivaldi
+set OPERA=HKLM\SOFTWARE\Policies\Opera Software
+
 :: Salted hash of the removal PIN, under a key only admins can read.
 for /f "delims=" %%A in ('powershell -NoProfile -Command "-join ((1..16) ^| ForEach-Object {'{0:x2}' -f (Get-Random -Max 256)})"') do set SALT=%%A
 for /f "delims=" %%A in ('powershell -NoProfile -Command "$b=[Text.Encoding]::UTF8.GetBytes('!SALT!'+'!PIN!'); (([Security.Cryptography.SHA256]::Create().ComputeHash($b) ^| ForEach-Object { $_.ToString('x2') }) -join '')"') do set HASH=%%A
@@ -149,6 +162,15 @@ reg add "%EDGE%" /v ForceGoogleSafeSearch /t REG_DWORD /d 1 /f >nul
 reg add "%EDGE%" /v ForceBingSafeSearch /t REG_DWORD /d 2 /f >nul
 reg add "%EDGE%" /v InPrivateModeAvailability /t REG_DWORD /d 1 /f >nul
 
+for %%B in ("%BRAVE%" "%CHROMIUM%" "%VIVALDI%" "%OPERA%") do (
+  reg add "%%~B" /v ForceGoogleSafeSearch /t REG_DWORD /d 1 /f >nul
+  reg add "%%~B" /v IncognitoModeAvailability /t REG_DWORD /d 1 /f >nul
+  if defined EXTID (
+    reg add "%%~B\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
+    reg add "%%~B\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
+  )
+)
+
 reg add "%FIREFOX%" /v DisablePrivateBrowsing /t REG_DWORD /d 1 /f >nul
 reg add "%FIREFOX%" /v BlockAboutConfig /t REG_DWORD /d 1 /f >nul
 
@@ -167,6 +189,9 @@ if defined FFURL (
 if /i not "%YT%"=="n" (
   reg add "%CHROME%" /v ForceYouTubeRestrict /t REG_DWORD /d 2 /f >nul
   reg add "%EDGE%" /v ForceYouTubeRestrict /t REG_DWORD /d 2 /f >nul
+  for %%B in ("%BRAVE%" "%CHROMIUM%" "%VIVALDI%" "%OPERA%") do (
+    reg add "%%~B" /v ForceYouTubeRestrict /t REG_DWORD /d 2 /f >nul
+  )
   echo   YouTube filtering on - comments will be unavailable.
 )
 
