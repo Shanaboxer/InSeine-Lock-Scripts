@@ -31,6 +31,7 @@ CHROME_DIRS=(
   "/etc/chromium-browser/policies/managed"
   "/etc/brave/policies/managed"
   "/etc/opt/edge/policies/managed"
+  "/etc/vivaldi/policies/managed"
   "/etc/opt/vivaldi/policies/managed"
   "/etc/opera/policies/managed"
 )
@@ -205,14 +206,22 @@ POLICY="{
 }"
 
 echo
+# Write to every location, whether or not the browser is installed yet.
+#
+# This used to write only where the parent directory already existed. Two
+# problems with that. Brave's own documentation says /etc/brave "may not exist
+# after installing Brave" and tells you to create it yourself — so the guard
+# failed, no policy was written, and Brave silently ignored the lock entirely.
+# And a child who installs a browser AFTER the lock is applied got a completely
+# unmanaged one, which is the obvious way round this.
+#
+# Writing a small JSON file into /etc for a browser that is not installed is
+# harmless, and unlock-browser.sh removes them all again.
 for dir in "${CHROME_DIRS[@]}"; do
-  parent="$(dirname "$(dirname "$dir")")"
-  if [[ -d "$parent" ]]; then
-    mkdir -p "$dir"
-    printf '%s\n' "$POLICY" > "$dir/inseine.json"
-    chmod 644 "$dir/inseine.json"
-    echo "  wrote $dir/inseine.json"
-  fi
+  mkdir -p "$dir"
+  printf '%s\n' "$POLICY" > "$dir/inseine.json"
+  chmod 644 "$dir/inseine.json"
+  echo "  wrote $dir/inseine.json"
 done
 
 # The gecko ID must match browser_specific_settings.gecko.id in the Firefox
@@ -251,9 +260,13 @@ FF_POLICY="{
   \"_inseine_marker\": \"written by In'Seine lock-browser.sh - safe to remove with unlock-browser.sh\"
 }"
 
+# /etc/firefox/policies is the supported location and is created here if
+# missing, for the same reason as above. The distribution/ directories are only
+# written when Firefox is actually installed there, since creating them under
+# /usr/lib for an absent browser would be litter rather than protection.
 for dir in "${FIREFOX_DIRS[@]}"; do
   parent="$(dirname "$dir")"
-  if [[ -d "$parent" ]]; then
+  if [[ "$dir" == /etc/* ]] || [[ -d "$parent" ]]; then
     mkdir -p "$dir"
     if [[ -f "$dir/policies.json" ]] && ! grep -q '_inseine_marker\|inseine@' "$dir/policies.json" 2>/dev/null; then
       cp "$dir/policies.json" "$dir/policies.json.inseine-backup"
@@ -263,6 +276,42 @@ for dir in "${FIREFOX_DIRS[@]}"; do
     echo "  wrote $dir/policies.json"
   fi
 done
+
+# --- browsers this lock cannot reach -----------------------------------------
+#
+# Chromium and its forks hardcode their policy directory under /etc. A Flatpak
+# or Snap browser reads the /etc INSIDE its own sandbox, not the host's, so a
+# file written here is invisible to it. The Flatpak project was asked for a way
+# round this in 2022 and closed the request without one.
+#
+# Silence would be the wrong answer. A parent who ran this script is entitled to
+# know that one of their browsers is not covered, because a browser with private
+# browsing still available undoes the rest of the lock.
+UNREACHABLE=""
+
+if command -v flatpak >/dev/null 2>&1; then
+  while read -r app; do
+    case "$app" in
+      com.brave.Browser)      UNREACHABLE="$UNREACHABLE  Brave (Flatpak)\n" ;;
+      com.google.Chrome)      UNREACHABLE="$UNREACHABLE  Chrome (Flatpak)\n" ;;
+      org.chromium.Chromium)  UNREACHABLE="$UNREACHABLE  Chromium (Flatpak)\n" ;;
+      com.microsoft.Edge)     UNREACHABLE="$UNREACHABLE  Edge (Flatpak)\n" ;;
+      com.vivaldi.Vivaldi)    UNREACHABLE="$UNREACHABLE  Vivaldi (Flatpak)\n" ;;
+      com.opera.Opera)        UNREACHABLE="$UNREACHABLE  Opera (Flatpak)\n" ;;
+      org.mozilla.firefox)    UNREACHABLE="$UNREACHABLE  Firefox (Flatpak)\n" ;;
+    esac
+  done < <(flatpak list --app --columns=application 2>/dev/null)
+fi
+
+if command -v snap >/dev/null 2>&1; then
+  while read -r name _; do
+    case "$name" in
+      brave)     UNREACHABLE="$UNREACHABLE  Brave (Snap)\n" ;;
+      chromium)  UNREACHABLE="$UNREACHABLE  Chromium (Snap)\n" ;;
+      opera)     UNREACHABLE="$UNREACHABLE  Opera (Snap)\n" ;;
+    esac
+  done < <(snap list 2>/dev/null | tail -n +2)
+fi
 
 echo
 echo "  Done. Now QUIT ALL BROWSERS COMPLETELY and reopen them."
@@ -294,6 +343,29 @@ if [[ -n "$FFURL" ]]; then
 else
   echo "  FIREFOX: NOT installed or locked - you skipped the add-on URL."
   echo "  In'Seine can still be removed there."
+fi
+
+if [[ -n "$UNREACHABLE" ]]; then
+  echo
+  echo "  ---------------------------------------------------------------"
+  echo "  THESE BROWSERS ARE NOT COVERED BY THE LOCK:"
+  echo
+  printf "%b" "$UNREACHABLE"
+  echo
+  echo "  They are installed as Flatpak or Snap packages, which run in a"
+  echo "  sandbox with their own /etc. Browser policy written on this"
+  echo "  computer cannot reach inside it. That is a limitation of those"
+  echo "  packaging systems, not something this script can work around."
+  echo
+  echo "  In'Seine itself still filters normally in them once installed."
+  echo "  What is missing is private browsing being disabled, and the"
+  echo "  extension being impossible to remove."
+  echo
+  echo "  To bring one under the lock, remove the Flatpak or Snap version"
+  echo "  and install the browser's normal .deb or .rpm instead. To take"
+  echo "  the simpler route, remove the browser and use one that is"
+  echo "  covered. Otherwise treat it as an open door."
+  echo "  ---------------------------------------------------------------"
 fi
 
 cat <<'DONE'

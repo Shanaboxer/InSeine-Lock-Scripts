@@ -39,7 +39,8 @@ REMOVED=0
 for dir in \
   "/etc/opt/chrome/policies/managed" "/etc/chromium/policies/managed" \
   "/etc/chromium-browser/policies/managed" "/etc/brave/policies/managed" \
-  "/etc/opt/edge/policies/managed" "/etc/opt/vivaldi/policies/managed" \
+  "/etc/opt/edge/policies/managed" "/etc/vivaldi/policies/managed" \
+  "/etc/opt/vivaldi/policies/managed" \
   "/etc/opera/policies/managed"
 do
   if [[ -f "$dir/inseine.json" ]]; then
