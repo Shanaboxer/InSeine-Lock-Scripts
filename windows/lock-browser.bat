@@ -53,22 +53,28 @@ echo.
 :: to copy 32 characters out of a URL was friction for nothing.
 set "EXTID=ichaagpaahpkijknaieiiegblkjaichh"
 
-:: Deliberately allowed to be empty. force_installed tells Chrome to DOWNLOAD
-:: the extension from the Web Store, so it cannot work for an unlisted or
-:: Sanity check only. force_installed tells Chrome to DOWNLOAD the extension
-:: from the Web Store, so it cannot work for a developer-loaded copy whatever
-:: ID is given - the ID Chrome shows for an unpacked extension is a hash of its
-:: folder path and changes if the folder is renamed. This guards against the ID
-:: above being mistyped in a future edit, not against user input.
-echo !EXTID!| findstr /r "^[a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p]$" >nul
-if errorlevel 1 (
-  echo.
-  echo   Internal error: the built-in extension ID is malformed.
-  echo   Expected 32 letters in the range a-p.
-  echo.
-  pause
-  exit /b 1
-)
+:: Sanity check only: exactly 32 characters, all in a-p.
+:: force_installed tells Chrome to DOWNLOAD the extension from the Web Store,
+:: so it cannot work for a developer-loaded copy whatever ID is given - the ID
+:: Chrome shows for an unpacked extension is a hash of its folder path and
+:: changes if the folder is renamed. This guards against the ID above being
+:: mistyped in a future edit, not against user input.
+::
+:: findstr can't handle a 32-term regex ("Search string too long"), so this
+:: tests the two conditions separately instead.
+echo !EXTID!| findstr /r "[^a-p]" >nul
+if not errorlevel 1 goto badid
+if "!EXTID:~31,1!"=="" goto badid
+if not "!EXTID:~32,1!"=="" goto badid
+goto idok
+:badid
+echo.
+echo   Internal error: the built-in extension ID is malformed.
+echo   Expected 32 letters in the range a-p.
+echo.
+pause
+exit /b 1
+:idok
 
 echo.
 echo   FIREFOX
@@ -139,15 +145,13 @@ echo.
 echo   Writing policy...
 
 :: Lock In'Seine only, and install it into every account.
-if defined EXTID (
-  reg add "%CHROME%\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
-  reg add "%CHROME%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
-  reg add "%CHROME%\ExtensionSettings\!EXTID!" /v incognito_mode /t REG_SZ /d "enabled" /f >nul
-  reg add "%CHROME%\ExtensionSettings\!EXTID!" /v toolbar_pin /t REG_SZ /d "force_pinned" /f >nul
+reg add "%CHROME%\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
+reg add "%CHROME%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
+reg add "%CHROME%\ExtensionSettings\!EXTID!" /v incognito_mode /t REG_SZ /d "enabled" /f >nul
+reg add "%CHROME%\ExtensionSettings\!EXTID!" /v toolbar_pin /t REG_SZ /d "force_pinned" /f >nul
 
-  reg add "%EDGE%\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
-  reg add "%EDGE%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
-)
+reg add "%EDGE%\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
+reg add "%EDGE%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
 
 :: Browser-level settings, below the extension
 reg add "%CHROME%" /v ForceGoogleSafeSearch /t REG_DWORD /d 1 /f >nul
@@ -159,10 +163,8 @@ reg add "%EDGE%" /v InPrivateModeAvailability /t REG_DWORD /d 1 /f >nul
 for %%B in ("%BRAVE%" "%CHROMIUM%" "%VIVALDI%" "%OPERA%") do (
   reg add "%%~B" /v ForceGoogleSafeSearch /t REG_DWORD /d 1 /f >nul
   reg add "%%~B" /v IncognitoModeAvailability /t REG_DWORD /d 1 /f >nul
-  if defined EXTID (
-    reg add "%%~B\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
-    reg add "%%~B\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
-  )
+  reg add "%%~B\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
+  reg add "%%~B\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
 )
 
 reg add "%FIREFOX%" /v DisablePrivateBrowsing /t REG_DWORD /d 1 /f >nul
