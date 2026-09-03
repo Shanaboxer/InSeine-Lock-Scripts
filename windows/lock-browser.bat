@@ -40,40 +40,34 @@ echo   NOT protect against anyone with the administrator password. If your
 echo   child's account has admin rights, give them a standard account -
 echo   that is the single most effective thing you can do.
 echo.
-echo   You need In'Seine's Chrome Web Store extension ID. It's at the end of
-echo   the store listing address. 32 letters, a to p.
-echo.
-echo   Not using Chrome, or In'Seine isn't on the store yet? Press Enter to
-echo   skip. Everything else still applies - private browsing off, SafeSearch
-echo   forced, Firefox extension locked - but Chrome and Edge will not
-echo   auto-install In'Seine or stop it being removed.
+echo   In'Seine will be installed automatically into every account on this
+echo   computer, and made impossible to remove or disable there. Your other
+echo   extensions are left alone and stay manageable as normal.
 echo.
 
-set "EXTID="
-set /p EXTID="   Extension ID (or Enter to skip): "
+:: In'Seine's Chrome Web Store ID, assigned at publication and permanent:
+::   https://chromewebstore.google.com/detail/inseine/ichaagpaahpkijknaieiiegblkjaichh
+::
+:: Earlier versions asked for this, because the extension wasn't on the store
+:: yet and there was no ID to hard-code. There is one now, and asking a parent
+:: to copy 32 characters out of a URL was friction for nothing.
+set "EXTID=ichaagpaahpkijknaieiiegblkjaichh"
 
 :: Deliberately allowed to be empty. force_installed tells Chrome to DOWNLOAD
 :: the extension from the Web Store, so it cannot work for an unlisted or
-:: developer-loaded copy whatever ID is given - the ID Chrome shows for an
-:: unpacked extension is a hash of its folder path and changes if the folder is
-:: renamed. Refusing to run just meant nobody could apply the rest.
-if defined EXTID (
-  for /f "delims=" %%A in ('powershell -NoProfile -Command "'!EXTID!'.Trim().ToLower()"') do set EXTID=%%A
-  echo !EXTID!| findstr /r "^[a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p]$" >nul
-  if errorlevel 1 (
-    echo.
-    echo   That doesn't look like a Chrome extension ID.
-    echo   Expected 32 letters in the range a-p, for example:
-    echo       nmmhkkegccagdldgiimedpiccmgmieda
-    echo.
-    echo   Leave it blank to skip the Chrome extension lock entirely.
-    echo.
-    pause
-    exit /b 1
-  )
-) else (
+:: Sanity check only. force_installed tells Chrome to DOWNLOAD the extension
+:: from the Web Store, so it cannot work for a developer-loaded copy whatever
+:: ID is given - the ID Chrome shows for an unpacked extension is a hash of its
+:: folder path and changes if the folder is renamed. This guards against the ID
+:: above being mistyped in a future edit, not against user input.
+echo !EXTID!| findstr /r "^[a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p][a-p]$" >nul
+if errorlevel 1 (
   echo.
-  echo   Skipped. In'Seine can still be removed in Chrome and Edge.
+  echo   Internal error: the built-in extension ID is malformed.
+  echo   Expected 32 letters in the range a-p.
+  echo.
+  pause
+  exit /b 1
 )
 
 echo.
@@ -203,13 +197,8 @@ echo     * Private browsing disabled
 echo     * Google SafeSearch forced on in Chrome and Edge
 echo     * about:config blocked in Firefox
 echo.
-if defined EXTID (
-  echo   CHROME / EDGE: In'Seine installs itself into every account and
-  echo   cannot be removed or disabled.
-) else (
-  echo   CHROME / EDGE: NOT installed or locked - you skipped the extension ID.
-  echo   In'Seine can still be removed there.
-)
+echo   CHROME / EDGE: In'Seine installs itself into every account and
+echo   cannot be removed or disabled.
 echo.
 if defined FFURL (
   echo   FIREFOX: In'Seine installs itself and cannot be removed.
