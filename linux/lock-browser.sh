@@ -80,38 +80,32 @@ BANNER
 
 # --- Chrome ------------------------------------------------------------------
 
+# In'Seine's Chrome Web Store ID, assigned at publication and permanent:
+#   https://chromewebstore.google.com/detail/inseine/ichaagpaahpkijknaieiiegblkjaichh
+#
+# Earlier versions asked for this, because the extension wasn't on the store
+# yet and there was no ID to hard-code. There is one now, and asking a parent
+# to copy 32 characters out of a URL was friction for nothing.
+EXTID="ichaagpaahpkijknaieiiegblkjaichh"
+
 echo "  CHROME, EDGE, BRAVE and other Chromium browsers"
 echo "  -----------------------------------------------"
-echo "  To install and lock In'Seine there, paste its Chrome Web Store ID."
-echo "  It's on the store listing page, at the end of the address:"
-echo "      chrome.google.com/webstore/detail/inseine/<THIS BIT>"
-echo "  32 letters, a to p."
+echo "  In'Seine will be installed automatically into every account on this"
+echo "  computer, and made impossible to remove or disable there. Your other"
+echo "  extensions are left alone and stay manageable as normal."
 echo
-echo "  Press Enter to skip. Private browsing and SafeSearch are still"
-echo "  applied; In'Seine just won't install itself or resist removal there."
-echo
-read -rp "  Extension ID (or Enter to skip): " EXTID
 
-EXTID=$(echo "$EXTID" | tr -d '[:space:]' | tr 'A-Z' 'a-z')
-
-# Deliberately allowed to be empty. force_installed tells Chrome to DOWNLOAD the
-# extension from the Web Store, so it cannot work for an unlisted or
-# developer-loaded copy whatever ID is supplied - the ID Chrome shows for an
-# unpacked extension is a hash of its folder path and changes if the folder is
-# renamed. Refusing to run at all just meant nobody could apply the rest.
-if [[ -n "$EXTID" ]] && ! [[ "$EXTID" =~ ^[a-p]{32}$ ]]; then
+# Sanity check only. force_installed tells Chrome to DOWNLOAD the extension
+# from the Web Store, so it cannot work for a developer-loaded copy whatever ID
+# is supplied - the ID Chrome shows for an unpacked extension is a hash of its
+# folder path and changes if the folder is renamed. This guards against the ID
+# above being mistyped in a future edit, not against user input.
+if ! [[ "$EXTID" =~ ^[a-p]{32}$ ]]; then
   echo
-  echo "  That doesn't look like a Chrome extension ID."
-  echo "  Expected 32 letters in the range a-p, for example:"
-  echo "      nmmhkkegccagdldgiimedpiccmgmieda"
-  echo
-  echo "  Leave it blank to skip the Chrome extension lock entirely."
+  echo "  Internal error: the built-in extension ID is malformed."
+  echo "  Expected 32 letters in the range a-p."
   echo
   exit 1
-fi
-
-if [[ -z "$EXTID" ]]; then
-  echo "  Skipped. In'Seine can still be removed in Chrome."
 fi
 
 # --- Firefox -----------------------------------------------------------------
@@ -186,8 +180,7 @@ printf '%s\n%s\n' "$SALT" "$HASH" > /etc/inseine/removal.pin
 chmod 600 /etc/inseine/removal.pin
 chown root:root /etc/inseine/removal.pin
 
-if [[ -n "$EXTID" ]]; then
-  EXT_POLICY=",
+EXT_POLICY=",
   \"ExtensionSettings\": {
     \"${EXTID}\": {
       \"installation_mode\": \"force_installed\",
@@ -196,9 +189,6 @@ if [[ -n "$EXTID" ]]; then
       \"toolbar_pin\": \"force_pinned\"
     }
   }"
-else
-  EXT_POLICY=""
-fi
 
 POLICY="{
   \"IncognitoModeAvailability\": 1,
@@ -326,16 +316,10 @@ if [[ -n "$YT_POLICY" ]]; then
 fi
 echo
 
-if [[ -n "$EXTID" ]]; then
-  echo "  CHROME: In'Seine will install itself into every account the next time"
-  echo "  the browser starts, and cannot be removed or disabled."
-  echo "  Sign into your child's account, open Chrome, and go through In'Seine's"
-  echo "  setup there to choose their filters and their PIN."
-else
-  echo "  CHROME: NOT installed or locked - you skipped the extension ID."
-  echo "  In'Seine can still be removed there, and won't appear in other"
-  echo "  accounts by itself. Re-run this script with the ID to change that."
-fi
+echo "  CHROME: In'Seine will install itself into every account the next time"
+echo "  the browser starts, and cannot be removed or disabled."
+echo "  Sign into your child's account, open Chrome, and go through In'Seine's"
+echo "  setup there to choose their filters and their PIN."
 echo
 
 if [[ -n "$FFURL" ]]; then
