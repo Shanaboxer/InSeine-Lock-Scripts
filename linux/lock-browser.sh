@@ -60,16 +60,14 @@ cat <<'BANNER'
   These apply to EVERY account on this computer, because browser policy is
   set system-wide.
 
-  OPTIONALLY, if you have the store details to hand:
-
     * In'Seine installed automatically into every account, and made
       impossible to remove or disable - and only In'Seine, your other
-      extensions carry on working and stay manageable.
+      extensions carry on working and stay manageable. This covers Chrome,
+      Edge and the other Chromium browsers, and Firefox.
 
-  That last one needs the extension to be published, because the browser
-  installs it FROM the store. You'll be asked for the details next, and you
-  can skip either or both. Skipping loses only that item; everything above
-  still applies.
+  The browser installs In'Seine FROM the store, so this needs no details
+  from you: the Chrome Web Store ID and the addons.mozilla.org download
+  link are both built into this script.
 
   IMPORTANT: this protects against a child using the computer. It does NOT
   protect against anyone with the administrator password. If your child's
@@ -120,31 +118,29 @@ fi
 # not a Firefox value at all. Firefox ignored the entry, and the Firefox
 # extension lock this script claimed to apply had never once worked.
 
+# In'Seine's add-on download URL on addons.mozilla.org. The "latest" form is
+# deliberate: it always resolves to the current version, so this lock does not
+# have to be re-run after every update. Pinning the versioned file instead
+# (in_seine-0.5.0.xpi) would freeze Firefox on that build for ever.
+#
+# Note the slug is "in-seine", with the hyphen, which is what AMO assigned.
+FFURL="https://addons.mozilla.org/firefox/downloads/latest/in-seine/latest.xpi"
+
 echo
 echo "  FIREFOX"
 echo "  -------"
-echo "  To install and lock In'Seine there, paste its add-on download URL."
-echo "  From the add-ons.mozilla.org listing it looks like:"
-echo "      https://addons.mozilla.org/firefox/downloads/latest/inseine/latest.xpi"
+echo "  In'Seine will be installed from addons.mozilla.org and made impossible"
+echo "  to remove there too."
 echo
-echo "  Press Enter to skip. Private browsing and about:config are still"
-echo "  blocked; In'Seine just won't install itself or resist removal there."
-echo
-read -rp "  Firefox add-on URL (or Enter to skip): " FFURL
 
-FFURL=$(echo "$FFURL" | tr -d '[:space:]')
-if [[ -n "$FFURL" ]] && ! [[ "$FFURL" =~ ^https://[^[:space:]]+\.xpi$ ]]; then
+# Same reasoning as the Chrome ID above: a guard against a bad edit, not
+# against user input.
+if ! [[ "$FFURL" =~ ^https://[^[:space:]]+\.xpi$ ]]; then
   echo
-  echo "  That doesn't look like an add-on download URL."
+  echo "  Internal error: the built-in add-on URL is malformed."
   echo "  It should start with https:// and end with .xpi"
   echo
-  echo "  Leave it blank to skip the Firefox extension lock entirely."
-  echo
   exit 1
-fi
-
-if [[ -z "$FFURL" ]]; then
-  echo "  Skipped. In'Seine can still be removed in Firefox."
 fi
 
 echo
@@ -223,20 +219,15 @@ done
 # delete. Without a reliable marker the unlock script left the file in place and
 # the lock could not be undone at all.
 # force_installed is the only Firefox mode that prevents removal, and it needs
-# install_url because Firefox fetches the add-on itself. No URL, no lock — so
-# the entry is left out entirely rather than written in a form that silently
-# does nothing.
-if [[ -n "$FFURL" ]]; then
-  FF_EXT=",
+# install_url because Firefox fetches the add-on itself rather than protecting
+# a copy already present.
+FF_EXT=",
     \"ExtensionSettings\": {
       \"inseine@inseine.co.uk\": {
         \"installation_mode\": \"force_installed\",
         \"install_url\": \"${FFURL}\"
       }
     }"
-else
-  FF_EXT=""
-fi
 
 # "_inseine_marker" is not a Firefox policy and is ignored by it. It is here so
 # unlock-browser.sh can recognise a policies.json as ours and know it is safe to
@@ -322,12 +313,7 @@ echo "  Sign into your child's account, open Chrome, and go through In'Seine's"
 echo "  setup there to choose their filters and their PIN."
 echo
 
-if [[ -n "$FFURL" ]]; then
-  echo "  FIREFOX: In'Seine will install itself and cannot be removed."
-else
-  echo "  FIREFOX: NOT installed or locked - you skipped the add-on URL."
-  echo "  In'Seine can still be removed there."
-fi
+echo "  FIREFOX: In'Seine will install itself and cannot be removed."
 
 if [[ -n "$UNREACHABLE" ]]; then
   echo
@@ -356,8 +342,8 @@ cat <<'DONE'
 
   Check it worked:
     chrome://policy       the entries should be listed
-    chrome://extensions   if you gave an ID, In'Seine's Remove is greyed
-                          out and other extensions are unaffected
+    chrome://extensions   In'Seine's Remove is greyed out, and other
+                          extensions are unaffected
     about:policies        the Firefox equivalent
 
   Private browsing should be gone from the menu in both.
