@@ -25,24 +25,19 @@ echo     * Google SafeSearch forced on in Chrome and Edge
 echo     * about:config blocked in Firefox
 echo     * A removal PIN, so none of it can be undone without it
 echo.
-echo   OPTIONALLY, if you have the store details to hand:
-echo.
 echo     * In'Seine installed automatically into every account, and made
 echo       impossible to remove - and only In'Seine, your other extensions
-echo       carry on working and stay manageable.
+echo       carry on working and stay manageable. This covers Chrome, Edge
+echo       and the other Chromium browsers, and Firefox.
 echo.
-echo   That last one needs the extension to be published, because the browser
-echo   installs it FROM the store. You'll be asked next, and you can skip
-echo   either or both. Skipping loses only that item.
+echo   The browser installs In'Seine FROM the store, so this needs no details
+echo   from you: the Chrome Web Store ID and the addons.mozilla.org download
+echo   link are both built into this script.
 echo.
 echo   IMPORTANT: this protects against a child using the computer. It does
 echo   NOT protect against anyone with the administrator password. If your
 echo   child's account has admin rights, give them a standard account -
 echo   that is the single most effective thing you can do.
-echo.
-echo   In'Seine will be installed automatically into every account on this
-echo   computer, and made impossible to remove or disable there. Your other
-echo   extensions are left alone and stay manageable as normal.
 echo.
 
 :: In'Seine's Chrome Web Store ID, assigned at publication and permanent:
@@ -79,21 +74,17 @@ exit /b 1
 echo.
 echo   FIREFOX
 echo   -------
-echo   To install and lock In'Seine there, paste its add-on download URL.
-echo   From the addons.mozilla.org listing it looks like:
-echo       https://addons.mozilla.org/firefox/downloads/latest/inseine/latest.xpi
-echo.
-echo   Press Enter to skip. Private browsing and about:config are still
-echo   blocked; In'Seine just won't install itself or resist removal there.
+echo   In'Seine will be installed from addons.mozilla.org and made impossible
+echo   to remove there too.
 echo.
 
-set "FFURL="
-set /p FFURL="   Firefox add-on URL (or Enter to skip): "
-
-if not defined FFURL (
-  echo.
-  echo   Skipped. In'Seine can still be removed in Firefox.
-)
+:: In'Seine's add-on download URL on addons.mozilla.org. The "latest" form is
+:: deliberate: it always resolves to the current version, so this lock does not
+:: have to be re-run after every update. Pinning the versioned file instead
+:: (in_seine-0.5.0.xpi) would freeze Firefox on that build for ever.
+::
+:: Note the slug is "in-seine", with the hyphen, which is what AMO assigned.
+set "FFURL=https://addons.mozilla.org/firefox/downloads/latest/in-seine/latest.xpi"
 
 echo.
 set /p PIN="   Set a removal PIN (4 digits): "
@@ -178,9 +169,7 @@ reg add "%FIREFOX%" /v BlockAboutConfig /t REG_DWORD /d 1 /f >nul
 :: a copy already present. An earlier version wrote "installation_mode":
 :: "locked", which is not a Firefox value at all - Firefox ignored the entry and
 :: the lock this script claimed to apply had never once worked.
-if defined FFURL (
-  reg add "%FIREFOX%" /v ExtensionSettings /t REG_SZ /d "{\"inseine@inseine.co.uk\":{\"installation_mode\":\"force_installed\",\"install_url\":\"!FFURL!\"}}" /f >nul
-)
+reg add "%FIREFOX%" /v ExtensionSettings /t REG_SZ /d "{\"inseine@inseine.co.uk\":{\"installation_mode\":\"force_installed\",\"install_url\":\"!FFURL!\"}}" /f >nul
 
 if /i not "%YT%"=="n" (
   reg add "%CHROME%" /v ForceYouTubeRestrict /t REG_DWORD /d 2 /f >nul
@@ -202,12 +191,7 @@ echo.
 echo   CHROME / EDGE: In'Seine installs itself into every account and
 echo   cannot be removed or disabled.
 echo.
-if defined FFURL (
-  echo   FIREFOX: In'Seine installs itself and cannot be removed.
-) else (
-  echo   FIREFOX: NOT installed or locked - you skipped the add-on URL.
-  echo   In'Seine can still be removed there.
-)
+echo   FIREFOX: In'Seine installs itself and cannot be removed.
 echo.
 echo   Check it worked:
 echo     chrome://policy       the entries should be listed
