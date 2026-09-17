@@ -47,6 +47,7 @@ echo.
 :: yet and there was no ID to hard-code. There is one now, and asking a parent
 :: to copy 32 characters out of a URL was friction for nothing.
 set "EXTID=ichaagpaahpkijknaieiiegblkjaichh"
+set "EDGEEXTID=enamohhodopckbgmeammnebbdjgdgcmg"
 
 :: Sanity check only: exactly 32 characters, all in a-p.
 :: force_installed tells Chrome to DOWNLOAD the extension from the Web Store,
@@ -141,8 +142,8 @@ reg add "%CHROME%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https:/
 reg add "%CHROME%\ExtensionSettings\!EXTID!" /v incognito_mode /t REG_SZ /d "enabled" /f >nul
 reg add "%CHROME%\ExtensionSettings\!EXTID!" /v toolbar_pin /t REG_SZ /d "force_pinned" /f >nul
 
-reg add "%EDGE%\ExtensionSettings\!EXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
-reg add "%EDGE%\ExtensionSettings\!EXTID!" /v update_url /t REG_SZ /d "https://clients2.google.com/service/update2/crx" /f >nul
+reg add "%EDGE%\ExtensionSettings\!EDGEEXTID!" /v installation_mode /t REG_SZ /d "force_installed" /f >nul
+reg add "%EDGE%\ExtensionSettings\!EDGEEXTID!" /v update_url /t REG_SZ /d "https://edge.microsoft.com/extensionwebstorebase/v1/crx" /f >nul
 
 :: Browser-level settings, below the extension
 reg add "%CHROME%" /v ForceGoogleSafeSearch /t REG_DWORD /d 1 /f >nul
