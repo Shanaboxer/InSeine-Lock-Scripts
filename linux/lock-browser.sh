@@ -165,6 +165,32 @@ else
 fi
 
 echo
+echo "  ---------------------------------------------------------------"
+echo "  PROTECT EXTENSION FILES (recommended)"
+echo "  ---------------------------------------------------------------"
+echo "  A background worker running as root will lock the actual"
+echo "  extension folders on disk. This stops a non-admin account from"
+echo "  renaming or deleting the extension folder (the common bypass"
+echo "  that breaks the filter)."
+echo
+echo "  The worker re-applies the lock every couple of minutes."
+echo "  Browser updates may occasionally need a restart of the browser"
+echo "  for the new version to appear cleanly."
+echo
+echo "  Without the worker, the policy still prevents removal via the"
+echo "  browser UI, but a child who knows how can still rename the"
+echo "  folder on disk and disable the filter."
+echo
+read -rp "  Install the protection worker? (Y/n): " WORKER
+if [[ "$WORKER" =~ ^[Nn]$ ]]; then
+  INSTALL_WORKER=0
+  echo "  Protection worker will not be installed."
+else
+  INSTALL_WORKER=1
+  echo "  Protection worker will be installed."
+fi
+
+echo
 read -rp "  Continue? (y/n): " CONFIRM
 [[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "  Cancelled. Nothing was changed."; exit 0; }
 
@@ -258,6 +284,130 @@ for dir in "${FIREFOX_DIRS[@]}"; do
   fi
 done
 
+# --- Optional protection worker ----------------------------------------------
+if [[ $INSTALL_WORKER -eq 1 ]]; then
+  echo
+  echo "  Installing protection worker..."
+
+  mkdir -p /etc/inseine
+  cat > /etc/inseine/worker.sh << 'WORKER'
+#!/bin/bash
+# In'Seine protection worker - runs as root
+# Re-applies restrictive permissions on the extension folders so a
+# non-admin user cannot rename or delete them.
+
+EXT_IDS=("ichaagpaahpkijknaieiiegblkjaichh" "enamohhodopckbgmeammnebbdjgdgcmg")
+GECKO_ID="inseine@inseine.co.uk"
+
+# Chromium-family locations under each user's home
+BROWSER_SUBPATHS=(
+  ".config/google-chrome"
+  ".config/chromium"
+  ".config/BraveSoftware/Brave-Browser"
+  ".config/microsoft-edge"
+  ".config/vivaldi"
+  ".config/opera"
+  ".var/app/com.google.Chrome/config/google-chrome"
+  ".var/app/org.chromium.Chromium/config/chromium"
+  ".var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser"
+  ".var/app/com.microsoft.Edge/config/microsoft-edge"
+)
+
+for home in /home/*; do
+  [ -d "$home" ] || continue
+  user=$(basename "$home")
+
+  for sub in "${BROWSER_SUBPATHS[@]}"; do
+    base="$home/$sub"
+    [ -d "$base" ] || continue
+    # Each profile (Default, Profile 1, ...)
+    for profile in "$base"/*/; do
+      [ -d "$profile" ] || continue
+      extroot="${profile}Extensions"
+      [ -d "$extroot" ] || continue
+      for id in "${EXT_IDS[@]}"; do
+        extdir="$extroot/$id"
+        if [ -d "$extdir" ]; then
+          # Owner root, group the user, mode 755 (user can read+enter, not write)
+          chown -R root:"$user" "$extdir" 2>/dev/null || true
+          chmod -R u=rwX,g=rX,o=rX "$extdir" 2>/dev/null || true
+          # Extra hardening with setfacl if available
+          if command -v setfacl >/dev/null 2>&1; then
+            setfacl -R -m "u:$user:r-x" "$extdir" 2>/dev/null || true
+            setfacl -R -m "d:u:$user:r-x" "$extdir" 2>/dev/null || true
+            setfacl -R -m "g:$user:r-x" "$extdir" 2>/dev/null || true
+          fi
+        fi
+      done
+    done
+  done
+
+  # Firefox
+  ffprofiles="$home/.mozilla/firefox"
+  if [ -d "$ffprofiles" ]; then
+    for profile in "$ffprofiles"/*/; do
+      [ -d "$profile" ] || continue
+      extdir="${profile}extensions/$GECKO_ID"
+      if [ -d "$extdir" ] || [ -f "$extdir" ]; then
+        chown -R root:"$user" "$extdir" 2>/dev/null || true
+        chmod -R u=rwX,g=rX,o=rX "$extdir" 2>/dev/null || true
+        if command -v setfacl >/dev/null 2>&1; then
+          setfacl -R -m "u:$user:r-x" "$extdir" 2>/dev/null || true
+          setfacl -R -m "d:u:$user:r-x" "$extdir" 2>/dev/null || true
+        fi
+      fi
+    done
+  fi
+done
+WORKER
+
+  chmod 700 /etc/inseine/worker.sh
+  chown root:root /etc/inseine/worker.sh
+
+  # systemd timer + service (preferred) or fall back to cron
+  if command -v systemctl >/dev/null 2>&1; then
+    cat > /etc/systemd/system/inseine-worker.service << 'SVC'
+[Unit]
+Description=In'Seine extension folder protection worker
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/etc/inseine/worker.sh
+Nice=10
+SVC
+
+    cat > /etc/systemd/system/inseine-worker.timer << 'TMR'
+[Unit]
+Description=Run In'Seine protection worker every 3 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=3min
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+TMR
+
+    systemctl daemon-reload
+    systemctl enable --now inseine-worker.timer >/dev/null 2>&1 || true
+    # Run once immediately
+    /etc/inseine/worker.sh || true
+    echo "  Protection worker installed (systemd timer)."
+  else
+    # Fallback: cron
+    echo "*/3 * * * * root /etc/inseine/worker.sh" > /etc/cron.d/inseine-worker
+    chmod 644 /etc/cron.d/inseine-worker
+    /etc/inseine/worker.sh || true
+    echo "  Protection worker installed (cron)."
+  fi
+
+  echo "1" > /etc/inseine/worker.installed
+  chmod 644 /etc/inseine/worker.installed
+fi
+
 # --- browsers this lock cannot reach -----------------------------------------
 #
 # Chromium and its forks hardcode their policy directory under /etc. A Flatpak
@@ -304,6 +454,9 @@ echo "    * Google SafeSearch forced on in Chromium browsers"
 echo "    * about:config blocked in Firefox"
 if [[ -n "$YT_POLICY" ]]; then
   echo "    * YouTube Restricted Mode"
+fi
+if [[ $INSTALL_WORKER -eq 1 ]]; then
+  echo "    * Extension folders locked on disk (protection worker)"
 fi
 echo
 

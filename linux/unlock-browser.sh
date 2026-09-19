@@ -73,6 +73,23 @@ for dir in "/etc/firefox/policies" "/usr/lib/firefox/distribution" \
   fi
 done
 
+# ---------------------------------------------------------------------------
+# Remove protection worker (if it was installed)
+# ---------------------------------------------------------------------------
+echo "  Removing protection worker (if present)..."
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl stop inseine-worker.timer 2>/dev/null || true
+  systemctl disable inseine-worker.timer 2>/dev/null || true
+  systemctl stop inseine-worker.service 2>/dev/null || true
+  rm -f /etc/systemd/system/inseine-worker.service
+  rm -f /etc/systemd/system/inseine-worker.timer
+  systemctl daemon-reload 2>/dev/null || true
+fi
+
+rm -f /etc/cron.d/inseine-worker
+rm -f /etc/inseine/worker.sh
+rm -f /etc/inseine/worker.installed
 rm -f /etc/inseine/removal.pin
 rmdir /etc/inseine 2>/dev/null || true
 
@@ -84,5 +101,7 @@ cat <<'DONE'
 
   The extensions page works again, and you can remove the In'Seine
   extension from there in the normal way.
+
+  If a protection worker was installed, it has been stopped and removed.
 
 DONE
