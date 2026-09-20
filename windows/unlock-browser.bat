@@ -73,29 +73,9 @@ reg delete "HKLM\SOFTWARE\Policies\Mozilla\Firefox" /v BlockAboutConfig /f >nul 
 :: the lock script would set it and nothing would ever take it away.
 reg delete "HKLM\SOFTWARE\Policies\Mozilla\Firefox" /v ExtensionSettings /f >nul 2>&1
 
-:: ---------------------------------------------------------------------------
-:: Remove protection worker (if it was installed)
-:: ---------------------------------------------------------------------------
-echo   Removing protection worker (if present)...
-
-schtasks /End /TN "InSeineWorker" >nul 2>&1
-schtasks /Delete /TN "InSeineWorker" /F >nul 2>&1
-
-if exist "C:\ProgramData\InSeine\Worker.ps1" (
-  del /f /q "C:\ProgramData\InSeine\Worker.ps1" >nul 2>&1
-)
-if exist "C:\ProgramData\InSeine" (
-  rmdir /s /q "C:\ProgramData\InSeine" >nul 2>&1
-)
-
 reg delete "HKLM\SOFTWARE\InSeine" /f >nul 2>&1
 
 echo.
 echo   Unlocked. Close ALL browsers completely and reopen them.
-echo.
-echo   The extensions page works again, and you can remove the In'Seine
-echo   extension from there in the normal way.
-echo.
-echo   If a protection worker was installed, it has been stopped and removed.
 echo.
 pause
