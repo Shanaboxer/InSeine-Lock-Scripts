@@ -86,6 +86,11 @@ BANNER
 # to copy 32 characters out of a URL was friction for nothing.
 EXTID="ichaagpaahpkijknaieiiegblkjaichh"
 
+# Edge has its own add-ons store, which issues its own extension ID. This is
+# NOT the Chrome ID above, and the two are not interchangeable.
+#   https://microsoftedge.microsoft.com/addons/detail/inseine-parental-web-fil/enamohhodopckbgmeammnebbdjgdgcmg
+EDGEEXTID="enamohhodopckbgmeammnebbdjgdgcmg"
+
 echo "  CHROME, EDGE, BRAVE and other Chromium browsers"
 echo "  -----------------------------------------------"
 echo "  In'Seine will be installed automatically into every account on this"
@@ -186,9 +191,32 @@ EXT_POLICY=",
     }
   }"
 
+# Edge is not just another Chromium browser here. It installs from its own
+# store, with its own extension ID and its own update_url. Writing the Chrome
+# ID and Chrome's update_url into Edge's policy - which this script used to do
+# - tells Edge to force-install something that does not exist in the store it
+# looks in. Edge installs nothing, silently. And since force_installed is what
+# re-downloads a deleted copy, renaming or deleting the extension folder on
+# disk defeated the filter permanently on Edge. That was a real, working bypass
+# found by a child, not a theoretical one.
+EDGE_EXT_POLICY=",
+  \"ExtensionSettings\": {
+    \"${EDGEEXTID}\": {
+      \"installation_mode\": \"force_installed\",
+      \"update_url\": \"https://edge.microsoft.com/extensionwebstorebase/v1/crx\",
+      \"incognito_mode\": \"enabled\",
+      \"toolbar_pin\": \"force_pinned\"
+    }
+  }"
+
 POLICY="{
   \"IncognitoModeAvailability\": 1,
   \"ForceGoogleSafeSearch\": true${YT_POLICY}${EXT_POLICY}
+}"
+
+EDGE_POLICY="{
+  \"IncognitoModeAvailability\": 1,
+  \"ForceGoogleSafeSearch\": true${YT_POLICY}${EDGE_EXT_POLICY}
 }"
 
 echo
@@ -205,7 +233,13 @@ echo
 # harmless, and unlock-browser.sh removes them all again.
 for dir in "${CHROME_DIRS[@]}"; do
   mkdir -p "$dir"
-  printf '%s\n' "$POLICY" > "$dir/inseine.json"
+  # Edge reads the same policy format but needs its own store's ID and
+  # update_url. Everything else in this list is Chrome Web Store based.
+  if [[ "$dir" == *"/edge/"* ]]; then
+    printf '%s\n' "$EDGE_POLICY" > "$dir/inseine.json"
+  else
+    printf '%s\n' "$POLICY" > "$dir/inseine.json"
+  fi
   chmod 644 "$dir/inseine.json"
   echo "  wrote $dir/inseine.json"
 done
